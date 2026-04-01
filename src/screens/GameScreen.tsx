@@ -1,38 +1,139 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { View, StyleSheet, Animated, TouchableWithoutFeedback, Text } from 'react-native';
+import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
+import { View, StyleSheet, Animated, TouchableWithoutFeedback, Text, Easing } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useGameState } from '../hooks/useGameState';
-import { checkBridgeSuccess, generateNextPlatformGap } from '../utils/physics';
-import { COLORS, PHYSICS, SCREEN } from '../constants';
+import { checkBridgeSuccess, generateNextPlatformGap, getPlatformWidth } from '../utils/physics';
+import { COLORS, PHYSICS as CONST_PHYSICS, SCREEN } from '../constants';
 import { Platform } from '../components/Platform';
 import { Bridge } from '../components/Bridge';
 import { Character } from '../components/Character';
 
+interface IParticle {
+  id: number;
+  x: number;
+  y: number;
+  color: string;
+  anim: Animated.Value;
+  vx: number;
+  vy: number;
+}
+
+const Particle = ({ particle }: { particle: IParticle }) => {
+  const opacity = particle.anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 0],
+  });
+
+  const translateX = particle.anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, particle.vx],
+  });
+
+  const translateY = particle.anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, particle.vy],
+  });
+
+  return (
+    <Animated.View
+      style={[
+        styles.particle,
+        {
+          left: particle.x,
+          top: particle.y,
+          backgroundColor: particle.color,
+          opacity,
+          transform: [{ translateX }, { translateY }, { scale: opacity }],
+        },
+      ]}
+    />
+  );
+};
+
 export default function GameScreen() {
-  const { state, setState, score, setScore, startGrowing, stopGrowing } = useGameState();
+  const { state, setState, score, highScore, setScore, startGame, startGrowing, stopGrowing } = useGameState();
 
   const bridgeHeight = useRef(new Animated.Value(0)).current;
   const bridgeRotate = useRef(new Animated.Value(0)).current;
   const characterX = useRef(new Animated.Value(0)).current;
   const characterY = useRef(new Animated.Value(0)).current;
   const screenPanX = useRef(new Animated.Value(0)).current;
+  const menuAnim = useRef(new Animated.Value(0)).current;
+  const perfectTextAnim = useRef(new Animated.Value(0)).current;
+  const shakeAnim = useRef(new Animated.Value(0)).current;
 
   const [platforms, setPlatforms] = useState([
-    { id: 1, x: 0, width: PHYSICS.platformWidth },
-    { id: 2, x: PHYSICS.platformWidth + 120, width: PHYSICS.platformWidth },
+    { id: 1, x: 0, width: CONST_PHYSICS.platformWidthBase },
+    { id: 2, x: 180, width: CONST_PHYSICS.platformWidthBase },
   ]);
+
+  const [particles, setParticles] = useState<IParticle[]>([]);
 
   const bridgeRefHeight = useRef(0);
   const growInterval = useRef<NodeJS.Timeout | null>(null);
 
-  const characterStartX = PHYSICS.platformWidth - 20;
+  // Menu animation
+  useEffect(() => {
+    if (state === 'menu') {
+      Animated.loop(
+        Animated.timing(menuAnim, {
+          toValue: 1,
+          duration: 3000,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        })
+      ).start();
+    } else {
+      menuAnim.stopAnimation();
+    }
+  }, [state]);
 
   useEffect(() => {
-    characterX.setValue(characterStartX);
+    characterX.setValue(platforms[0].width - 20);
+  }, []);
+
+  const triggerParticles = useCallback((x: number, y: number, color: string, count = 8) => {
+    const newParticles: IParticle[] = [];
+    for (let i = 0; i < count; i++) {
+      const anim = new Animated.Value(0);
+      const id = Date.now() + i;
+      const vx = (Math.random() - 0.5) * 100;
+      const vy = (Math.random() - 0.7) * 150;
+      
+      newParticles.push({ id, x, y, color, anim, vx, vy });
+
+      Animated.timing(anim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }).start(() => {
+        setParticles(prev => prev.filter(p => p.id !== id));
+      });
+    }
+    setParticles(prev => [...prev, ...newParticles]);
+  }, []);
+
+  const triggerShake = useCallback(() => {
+    Animated.sequence([
+      Animated.timing(shakeAnim, { toValue: 10, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -10, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 5, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -5, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 0, duration: 50, useNativeDriver: true }),
+    ]).start();
   }, []);
 
   const handlePressIn = () => {
+    if (state === 'menu') {
+      startGame();
+      return;
+    }
+    if (state === 'fail') {
+      resetGame();
+      return;
+    }
     if (state !== 'idle') return;
+    
     startGrowing();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
@@ -42,7 +143,7 @@ export default function GameScreen() {
     characterY.setValue(0);
 
     growInterval.current = setInterval(() => {
-      bridgeRefHeight.current += PHYSICS.bridgeGrowSpeed;
+      bridgeRefHeight.current += CONST_PHYSICS.bridgeGrowSpeed;
       bridgeHeight.setValue(bridgeRefHeight.current);
     }, 20);
   };
@@ -54,7 +155,7 @@ export default function GameScreen() {
 
     Animated.timing(bridgeRotate, {
       toValue: 90,
-      duration: PHYSICS.dropAnimDuration,
+      duration: CONST_PHYSICS.dropAnimDuration,
       useNativeDriver: false,
     }).start(() => {
       evaluateBridge();
@@ -69,7 +170,16 @@ export default function GameScreen() {
     const gapStart = nextPlatform.x - (currentPlatform.x + currentPlatform.width);
     const gapEnd = gapStart + nextPlatform.width;
 
-    const { success, isBait } = checkBridgeSuccess(bridgeRefHeight.current, gapStart, gapEnd);
+    const { success, isPerfect, isBait } = checkBridgeSuccess(bridgeRefHeight.current, gapStart, gapEnd);
+
+    if (success) {
+      triggerParticles(
+        currentPlatform.x + currentPlatform.width + bridgeRefHeight.current,
+        SCREEN.height - SCREEN.platformHeight,
+        isPerfect ? '#FFD700' : COLORS.bridge,
+        15
+      );
+    }
 
     if (isBait) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -83,18 +193,33 @@ export default function GameScreen() {
 
     Animated.timing(characterX, {
       toValue: walkTargetX,
-      duration: PHYSICS.characterWalkSpeed,
+      duration: CONST_PHYSICS.characterWalkSpeed,
       useNativeDriver: false,
     }).start(() => {
       if (success) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setScore(score + 1);
+        if (isPerfect) {
+          setScore(s => s + 2);
+          showPerfectText();
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } else {
+          setScore(s => s + 1);
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        }
         handleSuccess(nextPlatform);
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         handleFail();
       }
     });
+  };
+
+  const showPerfectText = () => {
+    perfectTextAnim.setValue(0);
+    Animated.sequence([
+      Animated.timing(perfectTextAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+      Animated.delay(500),
+      Animated.timing(perfectTextAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
+    ]).start();
   };
 
   const handleSuccess = (nextPlatform: any) => {
@@ -105,14 +230,17 @@ export default function GameScreen() {
       duration: 400,
       useNativeDriver: false,
     }).start(() => {
-      const newGap = generateNextPlatformGap();
+      const currentScore = score + 1;
+      const newGap = generateNextPlatformGap(currentScore);
+      const newWidth = getPlatformWidth(currentScore);
+      
       setPlatforms([
-        { id: platforms[1].id, x: 0, width: PHYSICS.platformWidth },
-        { id: platforms[1].id + 1, x: PHYSICS.platformWidth + newGap, width: PHYSICS.platformWidth },
+        { id: platforms[1].id, x: 0, width: nextPlatform.width },
+        { id: platforms[1].id + 1, x: nextPlatform.width + newGap, width: newWidth },
       ]);
       
       screenPanX.setValue(0);
-      characterX.setValue(characterStartX);
+      characterX.setValue(nextPlatform.width - 20);
       bridgeHeight.setValue(0);
       bridgeRotate.setValue(0);
       bridgeRefHeight.current = 0;
@@ -122,43 +250,100 @@ export default function GameScreen() {
 
   const handleFail = () => {
     setState('fail');
+    triggerShake();
+    triggerParticles(
+      platforms[0].width + bridgeRefHeight.current,
+      SCREEN.height - SCREEN.platformHeight + 20,
+      COLORS.character,
+      20
+    );
+
     Animated.timing(characterY, {
       toValue: -SCREEN.height,
-      duration: PHYSICS.fallAnimDuration,
+      duration: CONST_PHYSICS.fallAnimDuration,
       useNativeDriver: false,
     }).start();
   };
 
   const resetGame = () => {
-    setScore(0);
+    state === 'fail' ? startGame() : null;
     setPlatforms([
-      { id: Date.now(), x: 0, width: PHYSICS.platformWidth },
-      { id: Date.now() + 1, x: PHYSICS.platformWidth + 120, width: PHYSICS.platformWidth },
+      { id: Date.now(), x: 0, width: CONST_PHYSICS.platformWidthBase },
+      { id: Date.now() + 1, x: 180, width: CONST_PHYSICS.platformWidthBase },
     ]);
     screenPanX.setValue(0);
-    characterX.setValue(characterStartX);
+    characterX.setValue(CONST_PHYSICS.platformWidthBase - 20);
     characterY.setValue(0);
     bridgeHeight.setValue(0);
     bridgeRotate.setValue(0);
-    setState('idle');
+    bridgeRefHeight.current = 0;
   };
 
-  const currentPlatformEdge = platforms[0].x + platforms[0].width;
+  const rotation = menuAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+
+  const backgroundColor = useAnimatedValueInterpolation(score);
 
   return (
     <TouchableWithoutFeedback
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
-      onPress={state === 'fail' ? resetGame : undefined}
     >
-      <View style={styles.container}>
-        <Text style={styles.scoreText}>{score}</Text>
+      <Animated.View style={[styles.container, { backgroundColor }]}>
+        <View style={styles.header}>
+          <Text style={styles.scoreText}>{score}</Text>
+          <Text style={styles.bestScoreText}>BEST: {highScore}</Text>
+        </View>
 
-        {state === 'fail' && (
-          <Text style={styles.restartText}>Tekrar Oynamak İçin Dokun</Text>
+        <Animated.Text style={[styles.perfectText, { opacity: perfectTextAnim, transform: [{ translateY: perfectTextAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -50] }) }] }]}>
+          PERFECT! +2
+        </Animated.Text>
+
+        {state === 'menu' && (
+          <View style={styles.menuOverlay}>
+            <View style={styles.scoreBoard}>
+               <Text style={styles.scoreBoardTitle}>BEST SCORE</Text>
+               <Text style={styles.scoreBoardValue}>{highScore}</Text>
+            </View>
+            <View style={styles.startBadge}>
+               <Animated.View style={[styles.rotatingCircle, { transform: [{ rotate: rotation }] }]}>
+               </Animated.View>
+               <Text style={styles.tapToStartText}>BAŞLAMAK İÇİN DOKUN</Text>
+            </View>
+          </View>
         )}
 
-        <Animated.View style={[styles.gameArea, { transform: [{ translateX: screenPanX }] }]}>
+        {state === 'fail' && (
+          <View style={styles.failOverlay}>
+            <Text style={styles.gameOverText}>OYUN BİTTİ</Text>
+            <View style={styles.scoreSummary}>
+               <View style={styles.summaryItem}>
+                  <Text style={styles.summaryLabel}>SKOR</Text>
+                  <Text style={styles.summaryValue}>{score}</Text>
+               </View>
+               <View style={styles.summaryItem}>
+                  <Text style={styles.summaryLabel}>REKOR</Text>
+                  <Text style={styles.summaryValue}>{highScore}</Text>
+               </View>
+            </View>
+            <Text style={styles.restartText}>Tekrar Oynamak İçin Dokun</Text>
+          </View>
+        )}
+
+        <Animated.View style={[styles.parallaxLayer, { transform: [{ translateX: Animated.multiply(screenPanX, 0.2) }, { translateX: shakeAnim }] }]}>
+          <View style={[styles.cloud, { top: 100, left: 50, scaleX: 1.2 }]} />
+          <View style={[styles.cloud, { top: 150, left: 300, scaleX: 0.8 }]} />
+          <View style={[styles.cloud, { top: 250, left: 150 }]} />
+        </Animated.View>
+
+        <Animated.View style={[styles.parallaxLayer, { transform: [{ translateX: Animated.multiply(screenPanX, 0.5) }, { translateX: shakeAnim }] }]}>
+          <View style={[styles.mountain, { left: -100, borderBottomWidth: 400, borderLeftWidth: 300, borderRightWidth: 300 }]} />
+          <View style={[styles.mountain, { left: 250, borderBottomWidth: 300, borderLeftWidth: 200, borderRightWidth: 200, opacity: 0.8 }]} />
+        </Animated.View>
+
+        <Animated.View style={[styles.gameArea, { transform: [{ translateX: screenPanX }, { translateX: shakeAnim }] }]}>
           {platforms.map(p => (
             <Platform key={p.id} leftPos={p.x} width={p.width} />
           ))}
@@ -166,7 +351,7 @@ export default function GameScreen() {
           <Bridge
             heightAnim={bridgeHeight}
             rotateAnim={bridgeRotate}
-            leftOffset={currentPlatformEdge - 3} 
+            leftOffset={platforms[0].width - 3} 
             bottomOffset={SCREEN.platformHeight}
           />
 
@@ -175,40 +360,203 @@ export default function GameScreen() {
             translateY={characterY}
             bottomOffset={SCREEN.platformHeight}
           />
+
+          {particles.map(p => (
+            <Particle key={p.id} particle={p} />
+          ))}
         </Animated.View>
-      </View>
+      </Animated.View>
     </TouchableWithoutFeedback>
   );
+}
+
+function useAnimatedValueInterpolation(score: number) {
+  const animatedScore = useRef(new Animated.Value(0)).current;
+  
+  useEffect(() => {
+    Animated.timing(animatedScore, {
+      toValue: score,
+      duration: 1000,
+      useNativeDriver: false,
+    }).start();
+  }, [score]);
+
+  return animatedScore.interpolate({
+    inputRange: [0, 5, 10, 15, 20, 25, 30],
+    outputRange: [
+      '#87CEEB', 
+      '#FFB6C1', 
+      '#FF4500', 
+      '#4B0082', 
+      '#191970', 
+      '#000033', 
+      '#87CEEB', 
+    ],
+    extrapolate: 'clamp',
+  });
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+  },
+  header: {
+    position: 'absolute',
+    top: 60,
+    width: '100%',
+    alignItems: 'center',
+    zIndex: 10,
   },
   gameArea: {
     flex: 1,
   },
-  scoreText: {
+  parallaxLayer: {
     position: 'absolute',
-    top: 100,
-    alignSelf: 'center',
-    fontSize: 70,
+    width: '200%',
+    height: '100%',
+  },
+  mountain: {
+    position: 'absolute',
+    bottom: SCREEN.platformHeight,
+    width: 0,
+    height: 0,
+    backgroundColor: 'transparent',
+    borderStyle: 'solid',
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderBottomColor: 'rgba(0,0,0,0.11)',
+  },
+  cloud: {
+    position: 'absolute',
+    width: 100,
+    height: 40,
+    backgroundColor: 'rgba(255,255,255,0.4)',
+    borderRadius: 20,
+  },
+  scoreText: {
+    fontSize: 100,
+    fontWeight: '900',
+    color: 'rgba(0,0,0,0.1)',
+  },
+  bestScoreText: {
+    fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
-    zIndex: 100,
+    color: 'rgba(0,0,0,0.3)',
+    marginTop: -10,
+  },
+  perfectText: {
+    position: 'absolute',
+    top: SCREEN.height / 2 - 100,
+    alignSelf: 'center',
+    fontSize: 40,
+    fontWeight: 'bold',
+    color: '#FFD700',
+    zIndex: 200,
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 5,
+  },
+  menuOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  failOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  scoreBoard: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    padding: 20,
+    borderRadius: 15,
+    alignItems: 'center',
+    marginBottom: 40,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  scoreBoardTitle: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 14,
+    fontWeight: 'bold',
+    letterSpacing: 1,
+  },
+  scoreBoardValue: {
+    color: '#FFD700',
+    fontSize: 42,
+    fontWeight: '900',
+  },
+  startBadge: {
+    alignItems: 'center',
+  },
+  rotatingCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 6,
+    borderColor: '#fff',
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  tapToStartText: {
+    fontSize: 16,
+    color: '#fff',
+    fontWeight: 'bold',
+    letterSpacing: 1,
+  },
+  gameOverText: {
+    fontSize: 48,
+    fontWeight: '900',
+    color: '#fff',
+    marginBottom: 30,
+  },
+  scoreSummary: {
+    flexDirection: 'row',
+    marginBottom: 40,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    padding: 25,
+    borderRadius: 20,
+    gap: 30,
+  },
+  summaryItem: {
+    alignItems: 'center',
+  },
+  summaryLabel: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  summaryValue: {
+    color: '#fff',
+    fontSize: 32,
+    fontWeight: '900',
   },
   restartText: {
-    position: 'absolute',
-    top: 220,
-    alignSelf: 'center',
-    fontSize: 22,
-    color: '#FF4500',
-    fontWeight: 'bold',
-    zIndex: 100,
-    backgroundColor: 'white',
-    padding: 10,
-    borderRadius: 8,
+    fontSize: 20,
+    color: '#fff',
+    backgroundColor: '#FF4500',
+    paddingHorizontal: 35,
+    paddingVertical: 15,
+    borderRadius: 40,
     overflow: 'hidden',
+    fontWeight: 'bold',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+  },
+  particle: {
+    position: 'absolute',
+    width: 8,
+    height: 8,
+    borderRadius: 2,
+    zIndex: 5,
   }
 });

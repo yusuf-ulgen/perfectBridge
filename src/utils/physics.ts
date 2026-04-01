@@ -1,37 +1,46 @@
 import { PHYSICS } from '../constants';
 
+export const getPlatformWidth = (score: number) => {
+  // Reduces width as score goes up, min 25
+  return Math.max(25, PHYSICS.platformWidthBase - Math.floor(score / 5) * 5);
+};
+
+export const getGapRange = (score: number) => {
+  const min = PHYSICS.platformMinGapBase + Math.min(50, Math.floor(score / 3) * 5);
+  const max = PHYSICS.platformMaxGapBase; 
+  return { min, max };
+};
+
 export const checkBridgeSuccess = (
   bridgeLength: number,
-  gapStart: number, // Distance from bridge pivot to start of next platform
-  gapEnd: number    // Distance from bridge pivot to end of next platform
-): { success: boolean, isBait: boolean, dropLengthError: number } => {
+  gapStart: number,
+  gapEnd: number
+): { success: boolean, isPerfect: boolean, isBait: boolean } => {
+  const platformCenter = (gapStart + gapEnd) / 2;
+  const isPerfect = Math.abs(bridgeLength - platformCenter) <= PHYSICS.perfectLandingTolerance;
+
   if (bridgeLength >= gapStart && bridgeLength <= gapEnd) {
-    return { success: true, isBait: false, dropLengthError: 0 };
+    return { success: true, isPerfect, isBait: false };
   }
 
-  const missDistanceStart = gapStart - bridgeLength; // >0 if too short
-  const missDistanceEnd = bridgeLength - gapEnd;     // >0 if too long
+  const missDistanceStart = gapStart - bridgeLength;
+  const missDistanceEnd = bridgeLength - gapEnd;
 
   let isBait = false;
-  let dropLengthError = 0;
-
   if (missDistanceStart > 0 && missDistanceStart <= PHYSICS.baitTolerance) {
     isBait = true;
-    dropLengthError = -missDistanceStart; 
   } else if (missDistanceEnd > 0 && missDistanceEnd <= PHYSICS.baitTolerance) {
     isBait = true;
-    dropLengthError = missDistanceEnd; 
   }
 
   return { 
     success: false, 
-    isBait, 
-    dropLengthError: dropLengthError || (missDistanceStart > 0 ? -missDistanceStart : missDistanceEnd) 
+    isPerfect: false,
+    isBait 
   };
 };
 
-export const generateNextPlatformGap = () => {
-  const MathRnd = Math.random();
-  const range = PHYSICS.platformMaxGap - PHYSICS.platformMinGap;
-  return PHYSICS.platformMinGap + (MathRnd * range);
+export const generateNextPlatformGap = (score: number) => {
+  const { min, max } = getGapRange(score);
+  return min + Math.random() * (max - min);
 };

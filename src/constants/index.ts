@@ -11,14 +11,15 @@ export const COLORS = {
 };
 
 export const PHYSICS = {
-  bridgeGrowSpeed: 4, // Units added per interval ticket (e.g., 20ms)
-  characterWalkSpeed: 500, // Ms duration for walking animation
-  dropAnimDuration: 300, // Ms duration for bridge to drop
-  fallAnimDuration: 400, // Ms for character dropping
-  platformMinGap: 50,
-  platformMaxGap: 200,
-  platformWidth: 60,
-  baitTolerance: 2, // If missed by <= 2 units, trigger "Bait" logic (dramatic miss)
+  bridgeGrowSpeed: 4,
+  characterWalkSpeed: 500,
+  dropAnimDuration: 300,
+  fallAnimDuration: 400,
+  platformWidthBase: 60,
+  platformMinGapBase: 50,
+  platformMaxGapBase: 220,
+  baitTolerance: 3,
+  perfectLandingTolerance: 4,
 };
 
 export const SCREEN = {
