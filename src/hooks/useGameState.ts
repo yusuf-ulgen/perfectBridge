@@ -56,6 +56,7 @@ export const useGameState = () => {
     state,
     setState,
     score,
+    highScore,
     setScore,
     combo,
     setCombo,

@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Animated } from 'react-native';
+import { StyleSheet, Animated, View } from 'react-native';
 import { COLORS, SCREEN } from '../constants';
 
 interface PlatformProps {
@@ -8,7 +8,7 @@ interface PlatformProps {
   isTarget?: boolean;
 }
 
-export const Platform: React.FC<PlatformProps> = ({ leftPos, width, isTarget }) => {
+export const Platform = React.memo(({ leftPos, width, isTarget }: PlatformProps) => {
   return (
     <Animated.View
       style={[
@@ -25,7 +25,7 @@ export const Platform: React.FC<PlatformProps> = ({ leftPos, width, isTarget }) 
       <View style={styles.topHighlight} />
     </Animated.View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   platform: {

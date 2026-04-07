@@ -10,7 +10,7 @@ interface CharacterProps {
   isBalancing?: boolean;
 }
 
-export const Character: React.FC<CharacterProps> = ({ translateX, translateY, bottomOffset, isWalking, isBalancing }) => {
+export const Character = React.memo(({ translateX, translateY, bottomOffset, isWalking, isBalancing }: CharacterProps) => {
   const bobAnim = React.useRef(new Animated.Value(0)).current;
   const tiltAnim = React.useRef(new Animated.Value(0)).current;
 
@@ -53,7 +53,7 @@ export const Character: React.FC<CharacterProps> = ({ translateX, translateY, bo
       ]}
     />
   );
-};
+});
 
 const styles = StyleSheet.create({
   character: {

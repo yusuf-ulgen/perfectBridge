@@ -9,7 +9,7 @@ interface BridgeProps {
   bottomOffset: number;
 }
 
-export const Bridge: React.FC<BridgeProps> = ({ heightAnim, rotateAnim, leftOffset, bottomOffset }) => {
+export const Bridge = React.memo(({ heightAnim, rotateAnim, leftOffset, bottomOffset }: BridgeProps) => {
   return (
     <Animated.View
       style={[
@@ -31,7 +31,7 @@ export const Bridge: React.FC<BridgeProps> = ({ heightAnim, rotateAnim, leftOffs
       ]}
     />
   );
-}
+});
 
 const styles = StyleSheet.create({
   bridge: {

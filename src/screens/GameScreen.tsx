@@ -18,7 +18,7 @@ interface IParticle {
   vy: number;
 }
 
-const Particle = ({ particle }: { particle: IParticle }) => {
+const Particle = React.memo(({ particle }: { particle: IParticle }) => {
   const opacity = particle.anim.interpolate({
     inputRange: [0, 1],
     outputRange: [1, 0],
@@ -48,7 +48,26 @@ const Particle = ({ particle }: { particle: IParticle }) => {
       ]}
     />
   );
-};
+});
+
+const GameBackground = React.memo(({ totalPanX, shakeAnim, score }: { totalPanX: Animated.Value, shakeAnim: Animated.Value, score: number }) => {
+  const backgroundColor = useAnimatedValueInterpolation(score);
+
+  return (
+    <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor }]}>
+      <Animated.View style={[styles.parallaxLayer, { transform: [{ translateX: Animated.multiply(totalPanX, 0.2) }, { translateX: shakeAnim }] }]}>
+        <View style={[styles.cloud, { top: 100, left: 50, scaleX: 1.2 }]} />
+        <View style={[styles.cloud, { top: 150, left: 300, scaleX: 0.8 }]} />
+        <View style={[styles.cloud, { top: 250, left: 150 }]} />
+      </Animated.View>
+
+      <Animated.View style={[styles.parallaxLayer, { transform: [{ translateX: Animated.multiply(totalPanX, 0.5) }, { translateX: shakeAnim }] }]}>
+        <View style={[styles.mountain, { left: -100, borderBottomWidth: 400, borderLeftWidth: 300, borderRightWidth: 300 }]} />
+        <View style={[styles.mountain, { left: 250, borderBottomWidth: 300, borderLeftWidth: 200, borderRightWidth: 200, opacity: 0.8 }]} />
+      </Animated.View>
+    </Animated.View>
+  );
+});
 
 export default function GameScreen() {
   const { 
@@ -65,6 +84,7 @@ export default function GameScreen() {
   const menuAnim = useRef(new Animated.Value(0)).current;
   const perfectTextAnim = useRef(new Animated.Value(0)).current;
   const shakeAnim = useRef(new Animated.Value(0)).current;
+  const totalPanX = useRef(new Animated.Value(0)).current;
   const [isBalancing, setIsBalancing] = useState(false);
 
   const [platforms, setPlatforms] = useState([
@@ -185,7 +205,7 @@ export default function GameScreen() {
         15
       );
       if (isPerfect) {
-        triggerShake();
+        // No shake on perfect to keep it smooth
       }
     }
 
@@ -202,7 +222,7 @@ export default function GameScreen() {
     Animated.timing(characterX, {
       toValue: walkTargetX,
       duration: CONST_PHYSICS.characterWalkSpeed,
-      useNativeDriver: false,
+      useNativeDriver: true,
     }).start(() => {
       if (success) {
         if (isPerfect) {
@@ -250,21 +270,27 @@ export default function GameScreen() {
   const handleSuccess = (nextPlatform: any, currentScore: number) => {
     const panDistance = nextPlatform.x;
     
-    Animated.timing(screenPanX, {
-      toValue: -panDistance,
-      duration: 400,
-      useNativeDriver: false,
-    }).start(() => {
+    Animated.parallel([
+      Animated.timing(screenPanX, {
+        toValue: -panDistance,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+      Animated.timing(totalPanX, {
+        toValue: -panDistance,
+        duration: 400,
+        useNativeDriver: true,
+      })
+    ]).start(() => {
       const newGap = generateNextPlatformGap(currentScore);
       const newWidth = getPlatformWidth(currentScore);
       
+      const currentNext = platforms[1];
       setPlatforms([
-        { id: platforms[1].id, x: 0, width: nextPlatform.width },
-        { id: platforms[1].id + 1, x: nextPlatform.width + newGap, width: newWidth },
+        currentNext,
+        { id: Date.now(), x: currentNext.x + currentNext.width + newGap, width: newWidth },
       ]);
       
-      screenPanX.setValue(0);
-      characterX.setValue(nextPlatform.width - 20);
       bridgeHeight.setValue(0);
       bridgeRotate.setValue(0);
       bridgeRefHeight.current = 0;
@@ -285,7 +311,7 @@ export default function GameScreen() {
     Animated.timing(characterY, {
       toValue: -SCREEN.height,
       duration: CONST_PHYSICS.fallAnimDuration,
-      useNativeDriver: false,
+      useNativeDriver: true,
     }).start();
   };
 
@@ -296,6 +322,7 @@ export default function GameScreen() {
       { id: Date.now() + 1, x: 180, width: CONST_PHYSICS.platformWidthBase },
     ]);
     screenPanX.setValue(0);
+    totalPanX.setValue(0);
     characterX.setValue(CONST_PHYSICS.platformWidthBase - 20);
     characterY.setValue(0);
     bridgeHeight.setValue(0);
@@ -315,70 +342,9 @@ export default function GameScreen() {
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
     >
-      <Animated.View style={[styles.container, { backgroundColor }]}>
-        <View style={styles.header}>
-          <Text style={styles.scoreText}>{score}</Text>
-          <Text style={styles.bestScoreText}>BEST: {highScore}</Text>
-        </View>
-
-        <Animated.View style={[
-          styles.perfectContainer, 
-          { 
-            opacity: perfectTextAnim, 
-            transform: [
-              { translateY: perfectTextAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -100] }) },
-              { scale: perfectTextAnim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1.2] }) }
-            ] 
-          }
-        ]}>
-          <Text style={styles.perfectText}>PERFECT! +{perfectInfo.gain}</Text>
-          {perfectInfo.combo > 1 && (
-            <Text style={styles.comboText}>Combo x{perfectInfo.combo}!</Text>
-          )}
-        </Animated.View>
-
-        {state === 'menu' && (
-          <View style={styles.menuOverlay}>
-          <View style={[styles.scoreBoard, { backgroundColor: 'rgba(0,0,0,0.4)', borderColor: COLORS.perfect, borderWidth: 2 }]}>
-               <Text style={styles.scoreBoardTitle}>BEST SCORE</Text>
-               <Text style={styles.scoreBoardValue}>{highScore}</Text>
-            </View>
-            <View style={styles.startBadge}>
-               <Animated.View style={[styles.rotatingCircle, { transform: [{ rotate: rotation }] }]}>
-               </Animated.View>
-               <Text style={styles.tapToStartText}>BAŞLAMAK İÇİN DOKUN</Text>
-            </View>
-          </View>
-        )}
-
-        {state === 'fail' && (
-          <View style={styles.failOverlay}>
-            <Text style={styles.gameOverText}>OYUN BİTTİ</Text>
-            <View style={styles.scoreSummary}>
-               <View style={styles.summaryItem}>
-                  <Text style={styles.summaryLabel}>SKOR</Text>
-                  <Text style={styles.summaryValue}>{score}</Text>
-               </View>
-               <View style={styles.summaryItem}>
-                  <Text style={styles.summaryLabel}>REKOR</Text>
-                  <Text style={styles.summaryValue}>{highScore}</Text>
-               </View>
-            </View>
-            <Text style={styles.restartText}>Tekrar Oynamak İçin Dokun</Text>
-          </View>
-        )}
-
-        <Animated.View style={[styles.parallaxLayer, { transform: [{ translateX: Animated.multiply(screenPanX, 0.2) }, { translateX: shakeAnim }] }]}>
-          <View style={[styles.cloud, { top: 100, left: 50, scaleX: 1.2 }]} />
-          <View style={[styles.cloud, { top: 150, left: 300, scaleX: 0.8 }]} />
-          <View style={[styles.cloud, { top: 250, left: 150 }]} />
-        </Animated.View>
-
-        <Animated.View style={[styles.parallaxLayer, { transform: [{ translateX: Animated.multiply(screenPanX, 0.5) }, { translateX: shakeAnim }] }]}>
-          <View style={[styles.mountain, { left: -100, borderBottomWidth: 400, borderLeftWidth: 300, borderRightWidth: 300 }]} />
-          <View style={[styles.mountain, { left: 250, borderBottomWidth: 300, borderLeftWidth: 200, borderRightWidth: 200, opacity: 0.8 }]} />
-        </Animated.View>
-
+      <View style={styles.container}>
+        <GameBackground totalPanX={totalPanX} shakeAnim={shakeAnim} score={score} />
+        
         <Animated.View style={[styles.gameArea, { transform: [{ translateX: screenPanX }, { translateX: shakeAnim }] }]}>
           {platforms.map((p, idx) => (
             <Platform 
@@ -392,7 +358,7 @@ export default function GameScreen() {
           <Bridge
             heightAnim={bridgeHeight}
             rotateAnim={bridgeRotate}
-            leftOffset={platforms[0].width - 3} 
+            leftOffset={platforms[0].x + platforms[0].width - 3} 
             bottomOffset={SCREEN.platformHeight}
           />
 
@@ -408,7 +374,59 @@ export default function GameScreen() {
             <Particle key={p.id} particle={p} />
           ))}
         </Animated.View>
-      </Animated.View>
+
+        <View style={styles.header} pointerEvents="none">
+          <Text style={styles.scoreText}>{score}</Text>
+          <Text style={styles.bestScoreText}>BEST: {highScore}</Text>
+        </View>
+
+        <Animated.View style={[
+          styles.perfectContainer, 
+          { 
+            opacity: perfectTextAnim, 
+            transform: [
+              { translateY: perfectTextAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -100] }) },
+              { scale: perfectTextAnim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1.2] }) }
+            ] 
+          }
+        ]} pointerEvents="none">
+          <Text style={styles.perfectText}>PERFECT! +{perfectInfo.gain}</Text>
+          {perfectInfo.combo > 1 && (
+            <Text style={styles.comboText}>Combo x{perfectInfo.combo}!</Text>
+          )}
+        </Animated.View>
+
+        {state === 'menu' && (
+          <View style={styles.menuOverlay}>
+            <View style={[styles.scoreBoard, { backgroundColor: 'rgba(0,0,0,0.4)', borderColor: COLORS.perfect, borderWidth: 2 }]}>
+              <Text style={styles.scoreBoardTitle}>BEST SCORE</Text>
+              <Text style={styles.scoreBoardValue}>{highScore}</Text>
+            </View>
+            <View style={styles.startBadge} pointerEvents="none">
+              <Animated.View style={[styles.rotatingCircle, { transform: [{ rotate: rotation }] }]}>
+              </Animated.View>
+              <Text style={styles.tapToStartText}>BAŞLAMAK İÇİN DOKUN</Text>
+            </View>
+          </View>
+        )}
+
+        {state === 'fail' && (
+          <View style={styles.failOverlay}>
+            <Text style={styles.gameOverText}>OYUN BİTTİ</Text>
+            <View style={styles.scoreSummary}>
+              <View style={styles.summaryItem}>
+                <Text style={styles.summaryLabel}>SKOR</Text>
+                <Text style={styles.summaryValue}>{score}</Text>
+              </View>
+              <View style={styles.summaryItem}>
+                <Text style={styles.summaryLabel}>REKOR</Text>
+                <Text style={styles.summaryValue}>{highScore}</Text>
+              </View>
+            </View>
+            <Text style={styles.restartText}>Tekrar Oynamak İçin Dokun</Text>
+          </View>
+        )}
+      </View>
     </TouchableWithoutFeedback>
   );
 }
@@ -427,13 +445,13 @@ function useAnimatedValueInterpolation(score: number) {
   return animatedScore.interpolate({
     inputRange: [0, 10, 20, 30, 40, 50, 60],
     outputRange: [
-      '#87CEEB', // Day
-      '#FF7F50', // Sunset
-      '#191970', // Night
-      '#4B0082', // Indigo
-      '#000033', // Deep Space
-      '#483D8B', // Dark Slate Blue
-      '#87CEEB', // Back to Day
+      '#F0F4F8', // Soft Day
+      '#D1D9E6', // Cool Gray
+      '#708090', // Slate Gray
+      '#2C3E50', // Midnight Blue/Gray
+      '#1A1A1A', // Near Black
+      '#0A0A0A', // Deep Dark
+      '#F0F4F8', // Back to Day
     ],
     extrapolate: 'clamp',
   });
