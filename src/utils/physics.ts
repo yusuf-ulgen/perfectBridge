@@ -16,8 +16,7 @@ export const checkBridgeSuccess = (
   gapStart: number,
   gapEnd: number
 ): { success: boolean, isPerfect: boolean, isBait: boolean } => {
-  const platformCenter = (gapStart + gapEnd) / 2;
-  const isPerfect = Math.abs(bridgeLength - platformCenter) <= PHYSICS.perfectLandingTolerance;
+  const isPerfect = Math.abs(bridgeLength - gapStart) <= PHYSICS.perfectLandingTolerance;
 
   if (bridgeLength >= gapStart && bridgeLength <= gapEnd) {
     return { success: true, isPerfect, isBait: false };

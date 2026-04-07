@@ -51,7 +51,11 @@ const Particle = ({ particle }: { particle: IParticle }) => {
 };
 
 export default function GameScreen() {
-  const { state, setState, score, highScore, setScore, startGame, startGrowing, stopGrowing } = useGameState();
+  const { 
+    state, setState, score, highScore, setScore, 
+    combo, setCombo, 
+    startGame, startGrowing, stopGrowing 
+  } = useGameState();
 
   const bridgeHeight = useRef(new Animated.Value(0)).current;
   const bridgeRotate = useRef(new Animated.Value(0)).current;
@@ -61,6 +65,7 @@ export default function GameScreen() {
   const menuAnim = useRef(new Animated.Value(0)).current;
   const perfectTextAnim = useRef(new Animated.Value(0)).current;
   const shakeAnim = useRef(new Animated.Value(0)).current;
+  const [isBalancing, setIsBalancing] = useState(false);
 
   const [platforms, setPlatforms] = useState([
     { id: 1, x: 0, width: CONST_PHYSICS.platformWidthBase },
@@ -107,10 +112,10 @@ export default function GameScreen() {
         duration: 800,
         useNativeDriver: true,
       }).start(() => {
-        setParticles(prev => prev.filter(p => p.id !== id));
+        setParticles((prev: IParticle[]) => prev.filter(p => p.id !== id));
       });
     }
-    setParticles(prev => [...prev, ...newParticles]);
+    setParticles((prev: IParticle[]) => [...prev, ...newParticles]);
   }, []);
 
   const triggerShake = useCallback(() => {
@@ -176,9 +181,12 @@ export default function GameScreen() {
       triggerParticles(
         currentPlatform.x + currentPlatform.width + bridgeRefHeight.current,
         SCREEN.height - SCREEN.platformHeight,
-        isPerfect ? '#FFD700' : COLORS.bridge,
+        isPerfect ? COLORS.perfect : COLORS.bridge,
         15
       );
+      if (isPerfect) {
+        triggerShake();
+      }
     }
 
     if (isBait) {
@@ -198,31 +206,48 @@ export default function GameScreen() {
     }).start(() => {
       if (success) {
         if (isPerfect) {
-          setScore(s => s + 2);
-          showPerfectText();
+          const newCombo = combo + 1;
+          const scoreGain = 2 * newCombo;
+          setCombo(newCombo);
+          setScore(s => s + scoreGain);
+          showPerfectText(scoreGain, newCombo);
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          
+          setIsBalancing(true);
+          setTimeout(() => {
+            setIsBalancing(false);
+            handleSuccess(nextPlatform, score + scoreGain);
+          }, 400);
         } else {
+          setCombo(0);
           setScore(s => s + 1);
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          handleSuccess(nextPlatform, score + 1);
         }
-        handleSuccess(nextPlatform);
       } else {
+        setCombo(0);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         handleFail();
       }
     });
   };
 
-  const showPerfectText = () => {
+  const [perfectInfo, setPerfectInfo] = useState({ gain: 0, combo: 0 });
+  const showPerfectText = (gain: number, combo: number) => {
+    setPerfectInfo({ gain, combo });
     perfectTextAnim.setValue(0);
     Animated.sequence([
-      Animated.timing(perfectTextAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
-      Animated.delay(500),
+      Animated.spring(perfectTextAnim, { 
+        toValue: 1, 
+        friction: 4,
+        useNativeDriver: true 
+      }),
+      Animated.delay(800),
       Animated.timing(perfectTextAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
     ]).start();
   };
 
-  const handleSuccess = (nextPlatform: any) => {
+  const handleSuccess = (nextPlatform: any, currentScore: number) => {
     const panDistance = nextPlatform.x;
     
     Animated.timing(screenPanX, {
@@ -230,7 +255,6 @@ export default function GameScreen() {
       duration: 400,
       useNativeDriver: false,
     }).start(() => {
-      const currentScore = score + 1;
       const newGap = generateNextPlatformGap(currentScore);
       const newWidth = getPlatformWidth(currentScore);
       
@@ -297,13 +321,25 @@ export default function GameScreen() {
           <Text style={styles.bestScoreText}>BEST: {highScore}</Text>
         </View>
 
-        <Animated.Text style={[styles.perfectText, { opacity: perfectTextAnim, transform: [{ translateY: perfectTextAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -50] }) }] }]}>
-          PERFECT! +2
-        </Animated.Text>
+        <Animated.View style={[
+          styles.perfectContainer, 
+          { 
+            opacity: perfectTextAnim, 
+            transform: [
+              { translateY: perfectTextAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -100] }) },
+              { scale: perfectTextAnim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1.2] }) }
+            ] 
+          }
+        ]}>
+          <Text style={styles.perfectText}>PERFECT! +{perfectInfo.gain}</Text>
+          {perfectInfo.combo > 1 && (
+            <Text style={styles.comboText}>Combo x{perfectInfo.combo}!</Text>
+          )}
+        </Animated.View>
 
         {state === 'menu' && (
           <View style={styles.menuOverlay}>
-            <View style={styles.scoreBoard}>
+          <View style={[styles.scoreBoard, { backgroundColor: 'rgba(0,0,0,0.4)', borderColor: COLORS.perfect, borderWidth: 2 }]}>
                <Text style={styles.scoreBoardTitle}>BEST SCORE</Text>
                <Text style={styles.scoreBoardValue}>{highScore}</Text>
             </View>
@@ -344,8 +380,13 @@ export default function GameScreen() {
         </Animated.View>
 
         <Animated.View style={[styles.gameArea, { transform: [{ translateX: screenPanX }, { translateX: shakeAnim }] }]}>
-          {platforms.map(p => (
-            <Platform key={p.id} leftPos={p.x} width={p.width} />
+          {platforms.map((p, idx) => (
+            <Platform 
+              key={p.id} 
+              leftPos={p.x} 
+              width={p.width} 
+              isTarget={idx === 1 && state === 'idle'} 
+            />
           ))}
 
           <Bridge
@@ -359,6 +400,8 @@ export default function GameScreen() {
             translateX={characterX}
             translateY={characterY}
             bottomOffset={SCREEN.platformHeight}
+            isWalking={state === 'walking'}
+            isBalancing={isBalancing}
           />
 
           {particles.map(p => (
@@ -382,15 +425,15 @@ function useAnimatedValueInterpolation(score: number) {
   }, [score]);
 
   return animatedScore.interpolate({
-    inputRange: [0, 5, 10, 15, 20, 25, 30],
+    inputRange: [0, 10, 20, 30, 40, 50, 60],
     outputRange: [
-      '#87CEEB', 
-      '#FFB6C1', 
-      '#FF4500', 
-      '#4B0082', 
-      '#191970', 
-      '#000033', 
-      '#87CEEB', 
+      '#87CEEB', // Day
+      '#FF7F50', // Sunset
+      '#191970', // Night
+      '#4B0082', // Indigo
+      '#000033', // Deep Space
+      '#483D8B', // Dark Slate Blue
+      '#87CEEB', // Back to Day
     ],
     extrapolate: 'clamp',
   });
@@ -444,15 +487,27 @@ const styles = StyleSheet.create({
     color: 'rgba(0,0,0,0.3)',
     marginTop: -10,
   },
-  perfectText: {
+  perfectContainer: {
     position: 'absolute',
-    top: SCREEN.height / 2 - 100,
+    top: SCREEN.height / 2 - 150,
     alignSelf: 'center',
-    fontSize: 40,
-    fontWeight: 'bold',
-    color: '#FFD700',
+    alignItems: 'center',
     zIndex: 200,
+  },
+  perfectText: {
+    fontSize: 44,
+    fontWeight: '900',
+    color: COLORS.perfect,
     textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 10,
+  },
+  comboText: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: COLORS.combo,
+    marginTop: 5,
+    textShadowColor: 'rgba(0, 0, 0, 0.4)',
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 5,
   },
@@ -465,7 +520,7 @@ const styles = StyleSheet.create({
   },
   failOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(0,0,0,0.85)',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 1000,
@@ -519,10 +574,12 @@ const styles = StyleSheet.create({
   scoreSummary: {
     flexDirection: 'row',
     marginBottom: 40,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    padding: 25,
-    borderRadius: 20,
-    gap: 30,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    padding: 30,
+    borderRadius: 24,
+    gap: 40,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   summaryItem: {
     alignItems: 'center',

@@ -8,6 +8,9 @@ export const COLORS = {
   bridge: '#8B4513', // SaddleBrown color for bridge
   character: '#FF4500',
   text: '#ffffff',
+  perfect: '#FFD700',
+  combo: '#00FF00',
+  danger: '#FF0000',
 };
 
 export const PHYSICS = {
@@ -19,7 +22,7 @@ export const PHYSICS = {
   platformMinGapBase: 50,
   platformMaxGapBase: 220,
   baitTolerance: 3,
-  perfectLandingTolerance: 4,
+  perfectLandingTolerance: 5, // Slightly more forgiving for edge landing
 };
 
 export const SCREEN = {

@@ -6,9 +6,38 @@ interface CharacterProps {
   translateX: Animated.Value;
   translateY: Animated.Value;
   bottomOffset: number;
+  isWalking?: boolean;
+  isBalancing?: boolean;
 }
 
-export const Character: React.FC<CharacterProps> = ({ translateX, translateY, bottomOffset }) => {
+export const Character: React.FC<CharacterProps> = ({ translateX, translateY, bottomOffset, isWalking, isBalancing }) => {
+  const bobAnim = React.useRef(new Animated.Value(0)).current;
+  const tiltAnim = React.useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    if (isWalking) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(bobAnim, { toValue: -5, duration: 150, useNativeDriver: true }),
+          Animated.timing(bobAnim, { toValue: 0, duration: 150, useNativeDriver: true }),
+        ])
+      ).start();
+    } else {
+      bobAnim.setValue(0);
+    }
+  }, [isWalking]);
+
+  React.useEffect(() => {
+    if (isBalancing) {
+      Animated.sequence([
+        Animated.timing(tiltAnim, { toValue: 10, duration: 60, useNativeDriver: true }),
+        Animated.timing(tiltAnim, { toValue: -10, duration: 60, useNativeDriver: true }),
+        Animated.timing(tiltAnim, { toValue: 5, duration: 60, useNativeDriver: true }),
+        Animated.timing(tiltAnim, { toValue: 0, duration: 60, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [isBalancing]);
+
   return (
     <Animated.View
       style={[
@@ -17,7 +46,8 @@ export const Character: React.FC<CharacterProps> = ({ translateX, translateY, bo
           bottom: bottomOffset,
           transform: [
             { translateX: translateX },
-            { translateY: translateY }
+            { translateY: Animated.add(translateY, bobAnim) },
+            { rotate: tiltAnim.interpolate({ inputRange: [-10, 10], outputRange: ['-15deg', '15deg'] }) }
           ]
         }
       ]}

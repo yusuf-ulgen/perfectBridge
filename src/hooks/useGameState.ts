@@ -7,6 +7,7 @@ export const useGameState = () => {
   const [state, setState] = useState<GameState>('menu');
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(0);
+  const [combo, setCombo] = useState(0);
 
   // Load high score on initial mount
   useEffect(() => {
@@ -34,6 +35,7 @@ export const useGameState = () => {
   const startGame = () => {
     if (state === 'menu' || state === 'fail') {
       setScore(0);
+      setCombo(0);
       setState('idle');
     }
   };
@@ -55,7 +57,8 @@ export const useGameState = () => {
     setState,
     score,
     setScore,
-    highScore,
+    combo,
+    setCombo,
     startGame,
     startGrowing,
     stopGrowing,
