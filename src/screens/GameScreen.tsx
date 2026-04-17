@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
-import { View, StyleSheet, Animated, TouchableWithoutFeedback, Text, Easing } from 'react-native';
+import { View, StyleSheet, Animated, TouchableWithoutFeedback, Text, Easing, TouchableOpacity, Alert } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useGameState } from '../hooks/useGameState';
 import { checkBridgeSuccess, generateNextPlatformGap, getPlatformWidth } from '../utils/physics';
@@ -69,7 +69,7 @@ const GameBackground = React.memo(({ totalPanX, shakeAnim, score }: { totalPanX:
   );
 });
 
-export default function GameScreen() {
+export default function GameScreen({ onGoHome }: { onGoHome: () => void }) {
   const { 
     state, setState, score, highScore, setScore, 
     combo, setCombo, 
@@ -317,17 +317,44 @@ export default function GameScreen() {
 
   const resetGame = () => {
     state === 'fail' ? startGame() : null;
+    
+    // Stop any ongoing native animations to prevent character from disappearing or behaving erratically
+    characterY.stopAnimation();
+    characterX.stopAnimation();
+    bridgeHeight.stopAnimation();
+    bridgeRotate.stopAnimation();
+
     setPlatforms([
       { id: Date.now(), x: 0, width: CONST_PHYSICS.platformWidthBase },
       { id: Date.now() + 1, x: 180, width: CONST_PHYSICS.platformWidthBase },
     ]);
     screenPanX.setValue(0);
     totalPanX.setValue(0);
-    characterX.setValue(CONST_PHYSICS.platformWidthBase - 20);
-    characterY.setValue(0);
+    
+    // YENİ DÜZELTME: setValue bazı durumlarda Native Driver ile senkronize olmayabilir. 
+    // Bu yüzden 0 değerine 0 saniyede gidecek bir animasyonla zorla güncelliyoruz.
+    Animated.timing(characterY, { toValue: 0, duration: 0, useNativeDriver: true }).start();
+    Animated.timing(characterX, { toValue: CONST_PHYSICS.platformWidthBase - 20, duration: 0, useNativeDriver: true }).start();
+    
     bridgeHeight.setValue(0);
     bridgeRotate.setValue(0);
     bridgeRefHeight.current = 0;
+  };
+
+  const handleGoHomeRequest = () => {
+    // Sadece idle, growing, dropping, yürüyüş esnasında sor. Fail ve Menu'deyken direkt çıkabilir.
+    if (state === 'fail' || state === 'menu') {
+      onGoHome();
+    } else {
+      Alert.alert(
+        'Ana Menüye Dön',
+        'Mevcut ilerlemeniz kaybolacak. Çıkmak istediğinize emin misiniz?',
+        [
+          { text: 'İptal', style: 'cancel' },
+          { text: 'Çık', style: 'destructive', onPress: onGoHome }
+        ]
+      );
+    }
   };
 
   const rotation = menuAnim.interpolate({
@@ -345,6 +372,10 @@ export default function GameScreen() {
       <View style={styles.container}>
         <GameBackground totalPanX={totalPanX} shakeAnim={shakeAnim} score={score} />
         
+        <TouchableOpacity style={styles.backButton} onPress={handleGoHomeRequest} activeOpacity={0.7}>
+          <Text style={styles.backButtonText}>⬅ Ana Menü</Text>
+        </TouchableOpacity>
+
         <Animated.View style={[styles.gameArea, { transform: [{ translateX: screenPanX }, { translateX: shakeAnim }] }]}>
           {platforms.map((p, idx) => (
             <Platform 
@@ -424,6 +455,10 @@ export default function GameScreen() {
               </View>
             </View>
             <Text style={styles.restartText}>Tekrar Oynamak İçin Dokun</Text>
+            
+            <TouchableOpacity onPress={onGoHome} style={styles.failHomeButton}>
+              <Text style={styles.failHomeButtonText}>Ana Menüye Dön</Text>
+            </TouchableOpacity>
           </View>
         )}
       </View>
@@ -470,6 +505,23 @@ const styles = StyleSheet.create({
   },
   gameArea: {
     flex: 1,
+  },
+  backButton: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    zIndex: 100,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  backButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 14,
   },
   parallaxLayer: {
     position: 'absolute',
@@ -626,6 +678,20 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 5,
+  },
+  failHomeButton: {
+    marginTop: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 25,
+    paddingVertical: 12,
+    borderRadius: 30,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.4)',
+  },
+  failHomeButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   particle: {
     position: 'absolute',
