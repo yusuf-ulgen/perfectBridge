@@ -19,10 +19,15 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.anonymous.perfectbridge"
+      "package": "com.yusufulgen.perfectonebridge"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "bba176f0-b865-4daa-b7d9-6266b288079b"
+      }
     }
   }
 }
