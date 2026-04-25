@@ -15,7 +15,7 @@ export const COLORS = {
 
 export const PHYSICS = {
   bridgeGrowSpeed: 4,
-  characterWalkSpeed: 500,
+  characterWalkSpeed: 667, // Slower walking (approx 0.75x of original 500ms)
   dropAnimDuration: 300,
   fallAnimDuration: 400,
   platformWidthBase: 60,
@@ -24,6 +24,7 @@ export const PHYSICS = {
   baitTolerance: 3,
   perfectLandingTolerance: 5, // Slightly more forgiving for edge landing
 };
+
 
 export const SCREEN = {
   width: SCREEN_WIDTH,

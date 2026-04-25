@@ -52,9 +52,20 @@ export const useGameState = () => {
     }
   };
 
+  const [isPaused, setIsPaused] = useState(false);
+
+  const togglePause = () => {
+
+    if (state !== 'menu' && state !== 'fail') {
+      setIsPaused(prev => !prev);
+    }
+  };
+
   return {
     state,
     setState,
+    isPaused,
+    setIsPaused,
     score,
     highScore,
     setScore,
@@ -63,5 +74,7 @@ export const useGameState = () => {
     startGame,
     startGrowing,
     stopGrowing,
+    togglePause,
   };
 };
+

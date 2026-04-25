@@ -73,7 +73,8 @@ export default function GameScreen({ onGoHome }: { onGoHome: () => void }) {
   const { 
     state, setState, score, highScore, setScore, 
     combo, setCombo, 
-    startGame, startGrowing, stopGrowing 
+    startGame, startGrowing, stopGrowing,
+    isPaused, togglePause, setIsPaused
   } = useGameState();
 
   const bridgeHeight = useRef(new Animated.Value(0)).current;
@@ -86,6 +87,7 @@ export default function GameScreen({ onGoHome }: { onGoHome: () => void }) {
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const totalPanX = useRef(new Animated.Value(0)).current;
   const [isBalancing, setIsBalancing] = useState(false);
+  const [showConfirmExit, setShowConfirmExit] = useState(false);
 
   const [platforms, setPlatforms] = useState([
     { id: 1, x: 0, width: CONST_PHYSICS.platformWidthBase },
@@ -149,6 +151,7 @@ export default function GameScreen({ onGoHome }: { onGoHome: () => void }) {
   }, []);
 
   const handlePressIn = () => {
+    if (isPaused) return;
     if (state === 'menu') {
       startGame();
       return;
@@ -174,7 +177,7 @@ export default function GameScreen({ onGoHome }: { onGoHome: () => void }) {
   };
 
   const handlePressOut = () => {
-    if (state !== 'growing') return;
+    if (isPaused || state !== 'growing') return;
     if (growInterval.current) clearInterval(growInterval.current);
     stopGrowing();
 
@@ -237,7 +240,8 @@ export default function GameScreen({ onGoHome }: { onGoHome: () => void }) {
           setTimeout(() => {
             setIsBalancing(false);
             handleSuccess(nextPlatform, score + scoreGain);
-          }, 400);
+          }, 800);
+
         } else {
           setCombo(0);
           setScore(s => s + 1);
@@ -342,18 +346,10 @@ export default function GameScreen({ onGoHome }: { onGoHome: () => void }) {
   };
 
   const handleGoHomeRequest = () => {
-    // Sadece idle, growing, dropping, yürüyüş esnasında sor. Fail ve Menu'deyken direkt çıkabilir.
     if (state === 'fail' || state === 'menu') {
       onGoHome();
     } else {
-      Alert.alert(
-        'Ana Menüye Dön',
-        'Mevcut ilerlemeniz kaybolacak. Çıkmak istediğinize emin misiniz?',
-        [
-          { text: 'İptal', style: 'cancel' },
-          { text: 'Çık', style: 'destructive', onPress: onGoHome }
-        ]
-      );
+      setShowConfirmExit(true);
     }
   };
 
@@ -361,8 +357,6 @@ export default function GameScreen({ onGoHome }: { onGoHome: () => void }) {
     inputRange: [0, 1],
     outputRange: ['0deg', '360deg'],
   });
-
-  const backgroundColor = useAnimatedValueInterpolation(score);
 
   return (
     <TouchableWithoutFeedback
@@ -372,9 +366,11 @@ export default function GameScreen({ onGoHome }: { onGoHome: () => void }) {
       <View style={styles.container}>
         <GameBackground totalPanX={totalPanX} shakeAnim={shakeAnim} score={score} />
         
-        <TouchableOpacity style={styles.backButton} onPress={handleGoHomeRequest} activeOpacity={0.7}>
-          <Text style={styles.backButtonText}>⬅ Ana Menü</Text>
-        </TouchableOpacity>
+        {state !== 'menu' && state !== 'fail' && (
+          <TouchableOpacity style={styles.pauseButton} onPress={togglePause} activeOpacity={0.7}>
+            <Text style={styles.pauseButtonText}>{isPaused ? '▶' : '⏸'}</Text>
+          </TouchableOpacity>
+        )}
 
         <Animated.View style={[styles.gameArea, { transform: [{ translateX: screenPanX }, { translateX: shakeAnim }] }]}>
           {platforms.map((p, idx) => (
@@ -461,6 +457,37 @@ export default function GameScreen({ onGoHome }: { onGoHome: () => void }) {
             </TouchableOpacity>
           </View>
         )}
+
+        {isPaused && !showConfirmExit && (
+          <View style={styles.pauseOverlay}>
+            <Text style={styles.pauseTitle}>OYUN DURAKLATILDI</Text>
+            
+            <TouchableOpacity style={styles.pauseMenuButton} onPress={togglePause}>
+              <Text style={styles.pauseMenuButtonText}>DEVAM ET</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={[styles.pauseMenuButton, styles.pauseMenuSecondaryButton]} onPress={handleGoHomeRequest}>
+              <Text style={styles.pauseMenuSecondaryText}>ANA MENÜYE DÖN</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {showConfirmExit && (
+          <View style={styles.pauseOverlay}>
+            <View style={styles.confirmBox}>
+              <Text style={styles.confirmTitle}>EMİN MİSİNİZ?</Text>
+              <Text style={styles.confirmText}>Mevcut ilerlemeniz kaybolacak.</Text>
+              
+              <TouchableOpacity style={styles.pauseMenuButton} onPress={() => setShowConfirmExit(false)}>
+                <Text style={styles.pauseMenuButtonText}>İPTAL</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={[styles.pauseMenuButton, styles.pauseMenuSecondaryButton]} onPress={onGoHome}>
+                <Text style={styles.pauseMenuSecondaryText}>ÇIK</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </View>
     </TouchableWithoutFeedback>
   );
@@ -506,22 +533,88 @@ const styles = StyleSheet.create({
   gameArea: {
     flex: 1,
   },
-  backButton: {
+  pauseButton: {
     position: 'absolute',
     top: 50,
     left: 20,
     zIndex: 100,
     backgroundColor: 'rgba(0,0,0,0.5)',
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
   },
-  backButtonText: {
+  pauseButtonText: {
     color: '#fff',
+    fontSize: 18,
     fontWeight: 'bold',
-    fontSize: 14,
+  },
+  pauseOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2000,
+  },
+  pauseTitle: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#fff',
+    marginBottom: 40,
+    letterSpacing: 2,
+  },
+  confirmBox: {
+    width: '85%',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 30,
+    padding: 30,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  confirmTitle: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#fff',
+    marginBottom: 15,
+  },
+  confirmText: {
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.7)',
+    textAlign: 'center',
+    marginBottom: 35,
+  },
+  pauseMenuButton: {
+    backgroundColor: COLORS.perfect,
+    paddingHorizontal: 40,
+    paddingVertical: 15,
+    borderRadius: 30,
+    width: 240,
+    alignItems: 'center',
+    marginBottom: 20,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+  },
+  pauseMenuButtonText: {
+    color: '#000',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  pauseMenuSecondaryButton: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  pauseMenuSecondaryText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   parallaxLayer: {
     position: 'absolute',
