@@ -499,7 +499,7 @@ function useAnimatedValueInterpolation(score: number) {
   useEffect(() => {
     Animated.timing(animatedScore, {
       toValue: score,
-      duration: 1000,
+      duration: 1500,
       useNativeDriver: false,
     }).start();
   }, [score]);
@@ -535,22 +535,20 @@ const styles = StyleSheet.create({
   },
   pauseButton: {
     position: 'absolute',
-    top: 50,
+    top: 55,
     left: 20,
     zIndex: 100,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    backgroundColor: 'transparent',
+    width: 48,
+    height: 48,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
   },
   pauseButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
+    color: '#333', // Grayish/Blackish for subtle look
+    fontSize: 24,
+    fontWeight: '900',
+    opacity: 0.6, // Blend better with background
   },
   pauseOverlay: {
     ...StyleSheet.absoluteFillObject,
