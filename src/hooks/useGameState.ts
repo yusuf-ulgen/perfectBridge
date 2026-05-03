@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { leaderboardService } from '../utils/leaderboardService';
 
 export type GameState = 'menu' | 'idle' | 'growing' | 'dropping' | 'walking' | 'evaluating' | 'success' | 'fail';
 
@@ -29,6 +30,7 @@ export const useGameState = () => {
     if (score > highScore) {
       setHighScore(score);
       AsyncStorage.setItem('HIGH_SCORE', score.toString());
+      leaderboardService.updateScore(score);
     }
   }, [score]);
 
