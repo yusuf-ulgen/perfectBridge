@@ -116,7 +116,7 @@ export default function GameScreen({ onGoHome }: { onGoHome: () => void }) {
   }, [state]);
 
   useEffect(() => {
-    characterX.setValue(platforms[0].width - 20);
+    characterX.setValue(platforms[0].width - 12);
   }, []);
 
   const triggerParticles = useCallback((x: number, y: number, color: string, count = 8) => {
@@ -217,7 +217,7 @@ export default function GameScreen({ onGoHome }: { onGoHome: () => void }) {
     }
 
     const walkTargetX = success 
-      ? nextPlatform.x + nextPlatform.width - 20 
+      ? nextPlatform.x + nextPlatform.width - 12 
       : currentPlatform.x + currentPlatform.width + bridgeRefHeight.current;
 
     setState('walking');
@@ -312,11 +312,18 @@ export default function GameScreen({ onGoHome }: { onGoHome: () => void }) {
       20
     );
 
-    Animated.timing(characterY, {
-      toValue: -SCREEN.height,
-      duration: CONST_PHYSICS.fallAnimDuration,
-      useNativeDriver: true,
-    }).start();
+    Animated.parallel([
+      Animated.timing(characterY, {
+        toValue: -SCREEN.height,
+        duration: CONST_PHYSICS.fallAnimDuration,
+        useNativeDriver: true,
+      }),
+      Animated.timing(bridgeRotate, {
+        toValue: 180,
+        duration: CONST_PHYSICS.fallAnimDuration,
+        useNativeDriver: false,
+      })
+    ]).start();
   };
 
   const resetGame = () => {
@@ -338,7 +345,7 @@ export default function GameScreen({ onGoHome }: { onGoHome: () => void }) {
     // YENİ DÜZELTME: setValue bazı durumlarda Native Driver ile senkronize olmayabilir. 
     // Bu yüzden 0 değerine 0 saniyede gidecek bir animasyonla zorla güncelliyoruz.
     Animated.timing(characterY, { toValue: 0, duration: 0, useNativeDriver: true }).start();
-    Animated.timing(characterX, { toValue: CONST_PHYSICS.platformWidthBase - 20, duration: 0, useNativeDriver: true }).start();
+    Animated.timing(characterX, { toValue: CONST_PHYSICS.platformWidthBase - 12, duration: 0, useNativeDriver: true }).start();
     
     bridgeHeight.setValue(0);
     bridgeRotate.setValue(0);
