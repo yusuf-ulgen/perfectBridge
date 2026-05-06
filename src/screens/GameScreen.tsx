@@ -343,7 +343,7 @@ export default function GameScreen({ onGoHome }: { onGoHome: () => void }) {
     // Mario-style death animation: Jump up slightly, then fall down
     Animated.sequence([
       Animated.timing(characterY, {
-        toValue: -100,
+        toValue: -50,
         duration: 300,
         easing: Easing.out(Easing.quad),
         useNativeDriver: true,
