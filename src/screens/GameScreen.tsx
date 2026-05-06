@@ -53,17 +53,38 @@ const Particle = React.memo(({ particle }: { particle: IParticle }) => {
 const GameBackground = React.memo(({ totalPanX, shakeAnim, score }: { totalPanX: Animated.Value, shakeAnim: Animated.Value, score: number }) => {
   const backgroundColor = useAnimatedValueInterpolation(score);
 
+  // Infinite Parallax Logic:
+  // We want the background to scroll left as totalPanX decreases.
+  // totalPanX is 0, -180, -360...
+  // We use modulo to keep the translation within [0, -SCREEN.width]
+  const cloudPan = Animated.multiply(
+    Animated.modulo(Animated.multiply(totalPanX, -0.2), SCREEN.width),
+    -1
+  );
+
+  const mountainPan = Animated.multiply(
+    Animated.modulo(Animated.multiply(totalPanX, -0.5), SCREEN.width),
+    -1
+  );
+
   return (
     <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor }]}>
-      <Animated.View style={[styles.parallaxLayer, { transform: [{ translateX: Animated.multiply(totalPanX, 0.2) }, { translateX: shakeAnim }] }]}>
+      <Animated.View style={[styles.parallaxLayer, { transform: [{ translateX: cloudPan }, { translateX: shakeAnim }] }]}>
         <View style={[styles.cloud, { top: 100, left: 50, scaleX: 1.2 }]} />
         <View style={[styles.cloud, { top: 150, left: 300, scaleX: 0.8 }]} />
         <View style={[styles.cloud, { top: 250, left: 150 }]} />
+        {/* Repeating clouds for seamless loop */}
+        <View style={[styles.cloud, { top: 100, left: 50 + SCREEN.width, scaleX: 1.2 }]} />
+        <View style={[styles.cloud, { top: 150, left: 300 + SCREEN.width, scaleX: 0.8 }]} />
+        <View style={[styles.cloud, { top: 250, left: 150 + SCREEN.width }]} />
       </Animated.View>
 
-      <Animated.View style={[styles.parallaxLayer, { transform: [{ translateX: Animated.multiply(totalPanX, 0.5) }, { translateX: shakeAnim }] }]}>
+      <Animated.View style={[styles.parallaxLayer, { transform: [{ translateX: mountainPan }, { translateX: shakeAnim }] }]}>
         <View style={[styles.mountain, { left: -100, borderBottomWidth: 400, borderLeftWidth: 300, borderRightWidth: 300 }]} />
         <View style={[styles.mountain, { left: 250, borderBottomWidth: 300, borderLeftWidth: 200, borderRightWidth: 200, opacity: 0.8 }]} />
+        {/* Repeating mountains for seamless loop */}
+        <View style={[styles.mountain, { left: -100 + SCREEN.width, borderBottomWidth: 400, borderLeftWidth: 300, borderRightWidth: 300 }]} />
+        <View style={[styles.mountain, { left: 250 + SCREEN.width, borderBottomWidth: 300, borderLeftWidth: 200, borderRightWidth: 200, opacity: 0.8 }]} />
       </Animated.View>
     </Animated.View>
   );
@@ -312,16 +333,26 @@ export default function GameScreen({ onGoHome }: { onGoHome: () => void }) {
       20
     );
 
-    Animated.parallel([
+    // Bridge continues to fall/rotate
+    Animated.timing(bridgeRotate, {
+      toValue: 180,
+      duration: CONST_PHYSICS.fallAnimDuration,
+      useNativeDriver: false,
+    }).start();
+
+    // Mario-style death animation: Jump up slightly, then fall down
+    Animated.sequence([
       Animated.timing(characterY, {
-        toValue: -SCREEN.height,
-        duration: CONST_PHYSICS.fallAnimDuration,
+        toValue: -100,
+        duration: 300,
+        easing: Easing.out(Easing.quad),
         useNativeDriver: true,
       }),
-      Animated.timing(bridgeRotate, {
-        toValue: 180,
-        duration: CONST_PHYSICS.fallAnimDuration,
-        useNativeDriver: false,
+      Animated.timing(characterY, {
+        toValue: SCREEN.height,
+        duration: 800,
+        easing: Easing.in(Easing.quad),
+        useNativeDriver: true,
       })
     ]).start();
   };
@@ -504,22 +535,23 @@ function useAnimatedValueInterpolation(score: number) {
   const animatedScore = useRef(new Animated.Value(0)).current;
   
   useEffect(() => {
+    // Loop the background cycle every 50 points
     Animated.timing(animatedScore, {
-      toValue: score,
+      toValue: score % 50,
       duration: 1500,
       useNativeDriver: false,
     }).start();
   }, [score]);
 
   return animatedScore.interpolate({
-    inputRange: [0, 10, 20, 30, 40, 50, 60],
+    inputRange: [0, 10, 20, 30, 40, 45, 50],
     outputRange: [
       '#F0F4F8', // Soft Day
       '#D1D9E6', // Cool Gray
       '#708090', // Slate Gray
-      '#2C3E50', // Midnight Blue/Gray
-      '#1A1A1A', // Near Black
-      '#0A0A0A', // Deep Dark
+      '#34495E', // Midnight Blue (Lightened for visibility)
+      '#2C3E50', // Dark Blue (Lightened for visibility)
+      '#212F3C', // Deep Dark (But still lighter than platform #222222)
       '#F0F4F8', // Back to Day
     ],
     extrapolate: 'clamp',
