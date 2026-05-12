@@ -16,6 +16,7 @@ import * as Haptics from 'expo-haptics';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS } from '../constants';
 import { leaderboardService } from '../utils/leaderboardService';
+import { TutorialOverlay } from '../components/TutorialOverlay';
 
 const { width, height } = Dimensions.get('window');
 
@@ -29,6 +30,8 @@ export default function HomeScreen({ onPlay }: HomeScreenProps) {
   const [showStoryWarning, setShowStoryWarning] = useState(false);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
   const [isLeaderboardVisible, setIsLeaderboardVisible] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [hasSeenTutorial, setHasSeenTutorial] = useState(false);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const slideUpAnim = useRef(new Animated.Value(50)).current;
@@ -39,7 +42,11 @@ export default function HomeScreen({ onPlay }: HomeScreenProps) {
       try {
         const savedScore = await AsyncStorage.getItem('HIGH_SCORE');
         const savedNickname = await AsyncStorage.getItem('USER_NICKNAME');
+        const seenTutorial = await AsyncStorage.getItem('HAS_SEEN_TUTORIAL');
+        
         if (savedScore) setHighScore(parseInt(savedScore, 10));
+        if (seenTutorial === 'true') setHasSeenTutorial(true);
+        
         if (savedNickname) {
           setNickname(savedNickname);
           // Force sync current score to global DB if table exists
@@ -98,6 +105,21 @@ export default function HomeScreen({ onPlay }: HomeScreenProps) {
 
   const handlePlayPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (!hasSeenTutorial) {
+      setShowTutorial(true);
+    } else {
+      onPlay();
+    }
+  };
+
+  const handleTutorialClose = async () => {
+    setShowTutorial(false);
+    setHasSeenTutorial(true);
+    try {
+      await AsyncStorage.setItem('HAS_SEEN_TUTORIAL', 'true');
+    } catch (e) {
+      console.error('Failed to save tutorial state', e);
+    }
     onPlay();
   };
 
@@ -159,6 +181,11 @@ export default function HomeScreen({ onPlay }: HomeScreenProps) {
           </TouchableOpacity>
         </View>
       </Animated.View>
+
+      <TutorialOverlay 
+        visible={showTutorial} 
+        onClose={handleTutorialClose} 
+      />
 
       {/* Leaderboard Modal */}
       <Modal

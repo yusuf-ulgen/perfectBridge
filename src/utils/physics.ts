@@ -1,8 +1,14 @@
 import { PHYSICS } from '../constants';
 
 export const getPlatformWidth = (score: number) => {
-  // Reduces width as score goes up, min 25
-  return Math.max(25, PHYSICS.platformWidthBase - Math.floor(score / 5) * 5);
+  if (score <= 22) {
+    // Standard thinning until 22 (min 40)
+    return Math.max(40, PHYSICS.platformWidthBase - Math.floor(score / 5) * 5);
+  } else {
+    // Fluctuating width after 22: oscillates between 30 and 45
+    const oscillation = Math.sin(score * 0.8) * 7.5; 
+    return 37.5 + oscillation;
+  }
 };
 
 export const getGapRange = (score: number) => {

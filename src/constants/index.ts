@@ -22,7 +22,7 @@ export const PHYSICS = {
   platformMinGapBase: 50,
   platformMaxGapBase: 220,
   baitTolerance: 3,
-  perfectLandingTolerance: 5, // Slightly more forgiving for edge landing
+  perfectLandingTolerance: 16,
 };
 
 
