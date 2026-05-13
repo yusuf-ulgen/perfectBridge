@@ -5,29 +5,48 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import GameScreen from './src/screens/GameScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import NicknameScreen from './src/screens/NicknameScreen';
+import ReleaseNotesScreen from './src/screens/ReleaseNotesScreen';
+import { checkShowReleaseNotes, markReleaseNotesAsShown } from './src/utils/updateManager';
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<'Loading' | 'Nickname' | 'Home' | 'Game'>('Loading');
+  const [currentScreen, setCurrentScreen] = useState<'Loading' | 'Nickname' | 'Home' | 'Game' | 'ReleaseNotes'>('Loading');
   const [nickname, setNickname] = useState<string | null>(null);
   const [backPressCount, setBackPressCount] = useState(0);
 
   useEffect(() => {
-    const checkNickname = async () => {
+    const initializeApp = async () => {
       try {
+        // 1. Kullanıcı kaydı kontrolü
         const savedNickname = await AsyncStorage.getItem('USER_NICKNAME');
-        if (savedNickname) {
+        
+        // 2. Güncelleme notları kontrolü (Sadece güncellemeden sonra 1 kez gösterilir)
+        const shouldShowNotes = await checkShowReleaseNotes();
+        
+        if (shouldShowNotes) {
+          setCurrentScreen('ReleaseNotes');
+          setNickname(savedNickname);
+        } else if (savedNickname) {
           setNickname(savedNickname);
           setCurrentScreen('Home');
         } else {
           setCurrentScreen('Nickname');
         }
       } catch (e) {
-        console.error('Failed to check nickname', e);
+        console.error('App initialization error:', e);
         setCurrentScreen('Nickname');
       }
     };
-    checkNickname();
+    initializeApp();
   }, []);
+
+  const handleReleaseNotesContinue = async () => {
+    await markReleaseNotesAsShown();
+    if (nickname) {
+      setCurrentScreen('Home');
+    } else {
+      setCurrentScreen('Nickname');
+    }
+  };
 
   useEffect(() => {
     const backAction = () => {
@@ -72,6 +91,10 @@ export default function App() {
       {currentScreen === 'Game' && (
         <GameScreen onGoHome={() => setCurrentScreen('Home')} />
       )}
+      {currentScreen === 'ReleaseNotes' && (
+        <ReleaseNotesScreen onContinue={handleReleaseNotesContinue} />
+      )}
+
       <StatusBar style="light" />
     </View>
   );
@@ -83,3 +106,5 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
 });
+
+
