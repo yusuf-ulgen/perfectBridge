@@ -10,6 +10,7 @@ import {
   Modal,
   ScrollView,
   SafeAreaView,
+  Linking,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
@@ -32,6 +33,7 @@ export default function HomeScreen({ onPlay }: HomeScreenProps) {
   const [isLeaderboardVisible, setIsLeaderboardVisible] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [hasSeenTutorial, setHasSeenTutorial] = useState(false);
+  const [showDeveloperModal, setShowDeveloperModal] = useState(false);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const slideUpAnim = useRef(new Animated.Value(50)).current;
@@ -43,10 +45,10 @@ export default function HomeScreen({ onPlay }: HomeScreenProps) {
         const savedScore = await AsyncStorage.getItem('HIGH_SCORE');
         const savedNickname = await AsyncStorage.getItem('USER_NICKNAME');
         const seenTutorial = await AsyncStorage.getItem('HAS_SEEN_TUTORIAL');
-        
+
         if (savedScore) setHighScore(parseInt(savedScore, 10));
         if (seenTutorial === 'true') setHasSeenTutorial(true);
-        
+
         if (savedNickname) {
           setNickname(savedNickname);
           // Force sync current score to global DB if table exists
@@ -138,13 +140,23 @@ export default function HomeScreen({ onPlay }: HomeScreenProps) {
   return (
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <TouchableOpacity
-          style={styles.leaderboardTrigger}
-          onPress={openLeaderboard}
-          activeOpacity={0.7}
-        >
-          <MaterialCommunityIcons name="crown" size={32} color={COLORS.perfect} />
-        </TouchableOpacity>
+        <View style={styles.topButtonsContainer}>
+          <TouchableOpacity
+            style={styles.developerTrigger}
+            onPress={() => setShowDeveloperModal(true)}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons name="view-grid-outline" size={32} color={COLORS.perfect} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.leaderboardTrigger}
+            onPress={openLeaderboard}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons name="crown" size={32} color={COLORS.perfect} />
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
 
       <Animated.View style={[styles.content, { opacity: fadeAnim, transform: [{ translateY: slideUpAnim }] }]}>
@@ -182,9 +194,9 @@ export default function HomeScreen({ onPlay }: HomeScreenProps) {
         </View>
       </Animated.View>
 
-      <TutorialOverlay 
-        visible={showTutorial} 
-        onClose={handleTutorialClose} 
+      <TutorialOverlay
+        visible={showTutorial}
+        onClose={handleTutorialClose}
       />
 
       {/* Leaderboard Modal */}
@@ -224,6 +236,41 @@ export default function HomeScreen({ onPlay }: HomeScreenProps) {
         </View>
       </Modal>
 
+      {/* Developer Modal */}
+      <Modal
+        visible={showDeveloperModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowDeveloperModal(false)}
+      >
+        <View style={styles.devModalOverlay}>
+          <View style={styles.devModalContent}>
+            <MaterialCommunityIcons name="view-grid-outline" size={64} color={COLORS.perfect} style={styles.devModalIcon} />
+            <Text style={styles.devModalTitle}>BU OYUNU BEĞENDİNİZ Mİ?</Text>
+            <Text style={styles.devModalSubtitle}>Benzer oyunlar ve yeni çözüm odaklı projeler için yapımcının diğer uygulamalarına ve projelerine göz atmak ister misiniz?</Text>
+
+            <View style={styles.devModalActions}>
+              <TouchableOpacity
+                style={[styles.devModalButton, styles.devCancelButton]}
+                onPress={() => setShowDeveloperModal(false)}
+              >
+                <Text style={styles.devCancelButtonText}>VAZGEÇ</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.devModalButton, styles.devConfirmButton]}
+                onPress={() => {
+                  setShowDeveloperModal(false);
+                  Linking.openURL('https://play.google.com/store/apps/developer?id=Yusuf+Ulgen');
+                }}
+              >
+                <Text style={styles.devConfirmButtonText}>GÖZ AT</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <View style={styles.backgroundDecorations}>
         <View style={[styles.circle, styles.circle1]} />
         <View style={[styles.circle, styles.circle2]} />
@@ -246,10 +293,21 @@ const styles = StyleSheet.create({
     top: 0,
     zIndex: 20,
   },
+  topButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginTop: 50,
+  },
+  developerTrigger: {
+    padding: 10,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
   leaderboardTrigger: {
-    alignSelf: 'flex-end',
-    marginTop: 50, // Increased from 20
-    marginRight: 20,
     padding: 10,
     backgroundColor: 'rgba(255,255,255,0.05)',
     borderRadius: 15,
@@ -466,5 +524,70 @@ const styles = StyleSheet.create({
     backgroundColor: '#FF4A4A',
     bottom: -width * 0.3,
     right: -width * 0.3,
+  },
+  devModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  devModalContent: {
+    backgroundColor: '#1E293B',
+    borderRadius: 30,
+    padding: 30,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    width: '100%',
+    maxWidth: 400,
+  },
+  devModalIcon: {
+    marginBottom: 20,
+  },
+  devModalTitle: {
+    color: '#ffffff',
+    fontSize: 22,
+    fontWeight: '900',
+    textAlign: 'center',
+    marginBottom: 10,
+    letterSpacing: 1,
+  },
+  devModalSubtitle: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 30,
+    lineHeight: 24,
+  },
+  devModalActions: {
+    flexDirection: 'row',
+    gap: 15,
+    width: '100%',
+  },
+  devModalButton: {
+    flex: 1,
+    paddingVertical: 15,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  devCancelButton: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  devConfirmButton: {
+    backgroundColor: COLORS.perfect,
+  },
+  devCancelButtonText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  devConfirmButtonText: {
+    color: '#1E293B',
+    fontSize: 16,
+    fontWeight: '900',
   },
 });
